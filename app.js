@@ -1,7 +1,9 @@
 /*eslint-env node*/
 
-var apikey_old = "9055d0d69f924779e29aae25b02a53b2df49dd50";
-var apikey = "f0cece79e269d3f9fd6c0756c71595b8f819a3fd";
+var apikey_old1 = "9055d0d69f924779e29aae25b02a53b2df49dd50";
+var apikey_old = "f0cece79e269d3f9fd6c0756c71595b8f819a3fd";
+var apikey = "e861f8c22fd76c632624779e438ebaf678921367";
+var apikey_newer = "ba018d06378441a610a5b83bec54851cc420db3d";
 // cfenv provides access to your Cloud Foundry environment
 // for more info, see: https://www.npmjs.com/package/cfenv
 var cfenv = require('cfenv');
@@ -13,7 +15,14 @@ var AlchemyAPI = require('alchemy-api');
 var alchemy = new AlchemyAPI(apikey);
 var AlchemyNewsAPI = require('alchemy-news-api');
 var alchemyNewsAPI = new AlchemyNewsAPI(apikey);
+var watson = require('watson-developer-cloud');
 
+var tone_analyzer = watson.tone_analyzer({
+  username: '007eeda6-d06f-4cc7-8ab2-5b4c230aad98',
+  password: 'Ub7w7gSEBeB',
+  version: 'v3-beta',
+  version_date: '2016-02-11'
+});
 
 app.get('/', function(req, res){
   res.sendFile(__dirname + '/index.html');
@@ -22,57 +31,36 @@ app.get('/', function(req, res){
 io.on('connection', function(socket){
   socket.on('url', function(url){
     //console.log(url.url);
-    alchemy.combined(url.url, ["author","entity","concept"], {"sentiment":1}, function(err, response) {
+    alchemy.combined(url.url, ["author","entity","concept","textext"], {"sentiment":1}, function(err, response) {
       if (err){
         throw err;
       }
       if(response.status === 'ERROR'){
-        throw "API Blueballs " + response.statusInfo;
+        throw "API Error" + response.statusInfo;
       }
-
-      // See http://www.alchemyapi.com/api/combined-call/ for format of returned object.
-      // Each feature response will be available as a separate property
 
       var author = response.author;
       var entities = response.entities;
       var keywords = response.keywords;
       var concepts = response.concepts;
 
-      console.log(response);
-      //db.alchemy.insert({url:response});
-
-      //console.log(entities);
-      // console.log("Author:" + author);
-      // console.log("entity:" + entity);
-      // console.log("keyword:" + keyword);
-      // console.log("concept:" + concept);
+      //console.log(response);
 
 
-      // var entity = entities[0];
-      //
-      // var sentimentQuery = {
-      //     'title': entity.text,
-      //     'sentiment_type': inverseSentiment(entity.sentiment.type),
-      //     'sentiment_score': invertSentimentScore(entity.sentiment.score),
-      //     'return': ['url']
-      // };
-      //
-      // console.log(sentimentQuery);
-      // alchemyNewsAPI.getNewsBySentiment(sentimentQuery, function (error, resp) {
-      //     if (error) {
-      //         console.log(error);
-      //     } else {
-      //         // do something with response
-      //         result = resp.result;
-      //         if(result.status !== 'OK'){
-      //           throw "Error in News";
-      //         }
-      //         console.log(result.docs);
-      //         console.log(result.docs.source);
-      //     }
-      // });
+      alchemy.text(url.url, {}, function(err, rest) {
+        if (err) throw err;
 
-      io.emit('resp', response);
+        var text = rest.text;
+
+        tone_analyzer.tone({ "text": text, sentences: "false"}, function(err, tone) {
+            if (err)
+              console.log(err);
+            else{
+              response.toneAnal2 = tone;
+              io.emit('resp', response);
+            }
+        });
+      });
     });
   });
 });
@@ -101,6 +89,17 @@ function invertSentimentScore(sentimentScore){
   return result;
 }
 
+function hunh(){
+  alchemy.apiKeyInfo({}, function(err, response) {
+    if (err) throw err;
+
+    // Do something with data
+    console.log('Status:', response.status, 'Consumed:', response.consumedDailyTransactions, 'Limit:', response.dailyTransactionLimit);
+
+  });
+}
+
+hunh();
 
 // start server on the specified port and binding host
 http.listen(appEnv.port, function() {
